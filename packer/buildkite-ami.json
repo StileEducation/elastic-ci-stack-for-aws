@@ -2,9 +2,11 @@
   "builders": [
     {
       "type": "amazon-ebs",
-      "region": "us-east-1",
-      "source_ami": "ami-6869aa05",
-      "region": "us-east-1",
+      "region": "ap-southeast-2",
+      "source_ami": "ami-10361e73",
+      "vpc_id" : "vpc-262a7c43",
+      "subnet_id" : "subnet-21d4ee67",
+      "iam_instance_profile" : "buildkite-ami-builder-profile",
       "instance_type": "c4.large",
       "ssh_username": "ec2-user",
       "ami_name": "buildkite-stack-{{isotime | clean_ami_name}}",
@@ -37,6 +39,10 @@
     {
       "type": "shell",
       "script": "scripts/install-buildkite-agent.sh"
+    },
+    {
+      "type" : "shell",
+      "script" : "scripts/install-stile-extras.sh"
     }
   ]
 }
