@@ -1,6 +1,5 @@
 build/
 packer.output
-config.json
 vendor/
 .bundle/
 *.bak

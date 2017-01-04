@@ -1,0 +1,54 @@
+[
+  {
+    "ParameterKey": "BuildkiteOrgSlug",
+    "ParameterValue": "stile-education"
+  },
+  {
+    "ParameterKey": "BuildkiteAgentToken",
+    "ParameterValue": "BUILDKITE_AGENT_TOKEN"
+  },
+  {
+    "ParameterKey": "BuildkiteApiAccessToken",
+    "ParameterValue": "BUILDKITE_API_ACCESS_TOKEN"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "operations3"
+  },
+  {
+    "ParameterKey" : "InstanceType",
+    "ParameterValue" : "c4.xlarge"
+  },
+  {
+    "ParameterKey" : "AgentsPerInstance",
+    "ParameterValue" : "2"
+  },
+  {
+    "ParameterKey" : "MinSize",
+    "ParameterValue" : "0"
+  },
+  {
+    "ParameterKey" : "MaxSize",
+    "ParameterValue" : "10"
+  },
+  {
+    "ParameterKey" : "SpotPrice",
+    "ParameterValue" : "0.21"
+  },
+  {
+    "ParameterKey" : "VpcId",
+    "ParameterValue" : "vpc-262a7c43"
+  },
+  {
+    "ParameterKey" : "Subnets",
+    "ParameterValue" : "subnet-21d4ee67,subnet-b9200cce,subnet-996a6cfc"
+  },
+  {
+    "ParameterKey" : "SecretsBucket",
+    "ParameterValue" : "stile-buildkite-secrets"
+  },
+  {
+    "ParameterKey" : "ArtifactsBucket",
+    "ParameterValue" : "stile-ci-assets"
+  }
+]
