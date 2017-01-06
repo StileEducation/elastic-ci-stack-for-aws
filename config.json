@@ -21,7 +21,7 @@
   },
   {
     "ParameterKey" : "AgentsPerInstance",
-    "ParameterValue" : "2"
+    "ParameterValue" : "3"
   },
   {
     "ParameterKey" : "MinSize",
@@ -29,7 +29,7 @@
   },
   {
     "ParameterKey" : "MaxSize",
-    "ParameterValue" : "10"
+    "ParameterValue" : "15"
   },
   {
     "ParameterKey" : "SpotPrice",

@@ -17,8 +17,9 @@ sudo groupadd docker
 sudo usermod -a -G docker ec2-user
 
 # Manual install ala https://docs.docker.com/engine/installation/binaries/
-curl -Lsf https://get.docker.com/builds/Linux/x86_64/docker-1.12.1.tgz > docker-1.12.1.tgz
-tar -xvzf docker-1.12.1.tgz
+# curl -Lsf https://get.docker.com/builds/Linux/x86_64/docker-1.12.1.tgz > docker-1.12.1.tgz
+curl -Lsf https://test.docker.com/builds/Linux/x86_64/docker-1.13.0-rc4.tgz > docker-1.13.0-rc4.tgz
+tar -xvzf docker-1.13.0-rc4.tgz
 sudo mv docker/* /usr/bin
 
 # Install the init.d script that

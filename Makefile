@@ -1,4 +1,4 @@
-.PHONY: all clean build build-ami upload create-stack update-stack download-mappings toc check-env
+.PHONY: all clean build build-ami upload create-stack update-stack download-mappings toc check-env-agent-token check-env-access-token
 
 BUILDKITE_STACK_BUCKET ?= buildkite-aws-stack
 BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
@@ -44,19 +44,23 @@ upload: build/aws-stack.json
 config.json:
 	test -s config.json || $(error Please create a config.json file)
 
-check-env:
+
 ifndef BUILDKITE_AGENT_TOKEN
-    $(error BUILDKITE_AGENT_TOKEN is undefined)
+check-env-agent-token: ; $(error BUILDKITE_AGENT_TOKEN is undefined)
+else
+check-env-agent-token:
 endif
 ifndef BUILDKITE_API_ACCESS_TOKEN
-    $(error BUILDKITE_API_ACCESS_TOKEN is undefined)
+check-env-access-token: ; $(error BUILDKITE_API_ACCESS_TOKEN is undefined)
+else
+check-env-access-token:
 endif
 
 
 extra_tags.json:
 	echo "{}" > extra_tags.json
 
-create-stack: config.json build/aws-stack.json extra_tags.json check-env
+create-stack: config.json build/aws-stack.json extra_tags.json check-env-agent-token check-env-access-token
 	aws cloudformation create-stack \
 	--output text \
 	--stack-name $(STACK_NAME) \

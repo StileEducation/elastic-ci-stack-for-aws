@@ -34,6 +34,25 @@ s3_download() {
 
 echo "~~~ Setting up the environment"
 
+echo "Setting PATH appropriately"
+echo "PATH is originally: $PATH"
+elementInArray () {
+  local e
+  for e in "${@:2}"; do [[ "$e" == "$1" ]] && return 0; done
+  return 1
+}
+# read PATH into an array
+IFS=':' read -r -a PATHARR <<< "$PATH"
+# HOME/bin is important because gems installed by bundledr go there
+# /usr/local/bin is important because bundler goes there
+DESIRED_PATH_ELEMENTS=("/sbin" "/bin" "/usr/sbin" "/usr/bin" "/usr/local/sbin" "/usr/local/bin" "$HOME/bin")
+for EL in "${DESIRED_PATH_ELEMENTS[@]}"; do
+  if ! elementInArray "$EL" "${PATHARR[@]}"; then
+    export PATH="$EL:$PATH"
+  fi
+done
+echo "PATH is now: $PATH"
+
 echo "Sourcing CloudFormation environment..."
 set -o allexport
 source ~/cfn-env
