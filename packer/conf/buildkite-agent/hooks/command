@@ -1,0 +1,221 @@
+#!/bin/bash
+
+####### NOTE #######
+# We want to *conditionally* overwrite the buildkite command behaviour, rather than clobber it for every
+# build an agent runs. Buildkite lets us provide a `command` hook to customise the command behaviour,
+# but it is unconditional; it turns off the default command running behavour always. We get around this
+# by copypasta'ing the relevant section of default behavour from `bootstrap.sh` (in the buildkite/agent
+# repo on github) here. Then, we hack at it to do our behaviour only when a certain environment variable
+# is set.
+# Modifications are indicated by a #### STILE MODIFICATIONS ### section.
+
+# Make sure we actually have a command to run
+if [[ -z "$BUILDKITE_COMMAND" ]]; then
+  buildkite-error "No command has been defined. Please go to \"Project Settings\" and configure your build step's \"Command\""
+fi
+
+# Literal file paths are just executed as the command
+#
+# NOTE: There is a slight problem with this check - and it's with usage with
+# Docker. If you specify a script to run inside the docker container, and that
+# isn't on the file system at the same path, then it won't match, and it'll be
+# treated as an eval. For example, you mount your repository at /app, and tell
+# the agent run `app/ci.sh`, ci.sh won't exist on the filesytem at this point
+# at app/ci.sh. The solution is to make sure the `WORKDIR` directroy of the
+# docker container is at /app in that case.
+###### STILE MODIFICATIONS ###### Disable this behaviour if we are STILE_BUILD.
+if [[ -f "./$BUILDKITE_COMMAND" ]] && [[ "${STILE_BUILD_ENABLED}" == "true" ]]; then
+  BUILDKITE_COMMAND_DESCRIPTION="Running command"
+  printf -v BUILDKITE_COMMAND_PROMPT "./%q" "$BUILDKITE_COMMAND"
+  BUILDKITE_COMMAND_PATH="$BUILDKITE_COMMAND"
+
+# Otherwise we presume it is a shell script snippet
+else
+  # Make sure the agent is even allowed to eval commands
+  if [[ "$BUILDKITE_COMMAND_EVAL" != "true" ]]; then
+    buildkite-error "This agent is not allowed to evaluate console commands. To allow this, re-run this agent without the \`--no-command-eval\` option, or specify a script within your repository to run instead (such as scripts/test.sh)."
+  fi
+
+  buildkite-debug "~~~ Preparing build script"
+
+  BUILDKITE_COMMAND_DESCRIPTION="Running build script"
+  BUILDKITE_COMMAND_PROMPT="$BUILDKITE_COMMAND"
+  BUILDKITE_COMMAND_PATH="buildkite-script-$BUILDKITE_JOB_ID"
+
+  # We'll actually run a temporary file with pipefail and exit-on-fail
+  # containing the full script body, printed literally through printf
+  printf "#!/bin/bash\nset -eo pipefail\n%s\n" "$BUILDKITE_COMMAND" > "$BUILDKITE_COMMAND_PATH"
+
+  if [[ "$BUILDKITE_AGENT_DEBUG" == "true" ]]; then
+    buildkite-run cat "./$BUILDKITE_COMMAND_PATH"
+  fi
+fi
+
+# Make sure the command is executable
+if [[ ! -x "./$BUILDKITE_COMMAND_PATH" ]]; then
+  buildkite-run-debug chmod +x "./$BUILDKITE_COMMAND_PATH"
+fi
+
+
+###### STILE MODIFICATIONS ######
+if [[ "${STILE_BUILD_ENABLED}" == "true" ]]; then
+
+    # If the $STILE_BUILD_ENABLED env var is set, then we should run the required command in the
+    # context of the docker.au.s522.net/stile-build:latest docker container.
+    # This lets update agent behaviour on-the-fly by publishing a new image.
+    STILE_BUILD_IMAGE_TAG="${STILE_BUILD_IMAGE_TAG:-latest}"
+    echo "~~~ Pulling stile-build image tag ${STILE_BUILD_IMAGE_TAG}"
+    buildkite-prompt-and-run docker pull "docker.au.s522.net/stile-build:${STILE_BUILD_IMAGE_TAG}"
+
+    STILE_BUILD_DOCKER_CONTAINER="stile_build_${BUILDKITE_JOB_ID}_container"
+
+    # Very carefully build up a command line to run the build in a docker container.
+    STILE_BUILD_DOCKER_INVOCATION=("docker" "run" "--rm" "-it")
+    # Name the container
+    STILE_BUILD_DOCKER_INVOCATION+=("--name" "$STILE_BUILD_DOCKER_CONTAINER")
+    # We need to mount the checked-out source to the container - slap it at /source
+    STILE_BUILD_DOCKER_INVOCATION+=("-v" "$(realpath "$BUILDKITE_BUILD_CHECKOUT_PATH"):/source")
+    # Export large swathes of the environment into the invocation.
+    # This will make BUILDKITE_* variables exported.
+    # Do this very carefully - something like "for var in $(env)" will break if a variable contains
+    # a newline, and methods like `printenv` also have this issue. The only place I could find that
+    # handled that correctly, and would let us loop, was /proc/self/environ.
+    # Note that /proc/self/environ is the state of the environment at the *start* of the process,
+    # so is unaffected by anything we export here if we just read it; instead, we need to spawn
+    # a `cat` that inherits the current environment and looks at it (hence < <(cat /proc/self/environ)
+    # instead of < /proc/self/environ).
+    while read -d $'\0' ENV_PAIR; do
+        case "${ENV_PAIR}" in
+            BUILDKITE_*) ;& # fallthrough
+            STILE_*)
+                STILE_BUILD_DOCKER_INVOCATION+=("-e" "${ENV_PAIR}")
+                ;;
+        esac
+    done < <(cat /proc/self/environ)
+    # entrypoint.rb in stile-build contianer wants the UID & GID of the buildkite user so that it can
+    # cleanly change users to it.
+    STILE_BUILD_DOCKER_INVOCATION+=("-e" "STILE_BUILDKITE_USER_ID=$(id -u buildkite-agent)")
+    STILE_BUILD_DOCKER_INVOCATION+=("-e" "STILE_BUILDKITE_GROUP_ID=$(id -g buildkite-agent)")
+    # It also needs to be privileged, to start a docker daemon
+    STILE_BUILD_DOCKER_INVOCATION+=("--privileged")
+    # Working directory should be the SCM checkout directory
+    STILE_BUILD_DOCKER_INVOCATION+=("-w" "/source")
+    # The image name
+    STILE_BUILD_DOCKER_INVOCATION+=("docker.au.s522.net/stile-build:${STILE_BUILD_IMAGE_TAG}")
+    if [[ "${STILE_BUILD_COMMAND_IS_PROGRAM}" == "true" ]]; then
+        # $BUILDKITE_COMMAND is a shell-quoted ARGV for a program to execute in the container
+        echo "TODO: STILE_BUILD_COMMAND_IS_PROGRAM not implemented yet"
+        STILE_BUILD_DOCKER_INVOCATION+=("/bin/false")
+    else
+        # $BUILDKITE_COMMAND is an an artibrary shell snippet; so execute a shell for it.
+        STILE_BUILD_DOCKER_INVOCATION+=("/bin/bash" "-c" "${BUILDKITE_COMMAND}")
+    fi
+
+    # Now exec the container!
+    echo "~~~ $BUILDKITE_COMMAND_DESCRIPTION (in STILE_BUILD Docker container)"
+    buildkite-prompt-and-run "${STILE_BUILD_DOCKER_INVOCATION[@]}"
+    export BUILDKITE_COMMAND_EXIT_STATUS=$?
+###### END STILE MODIFICATIONS ##
+
+## Docker
+elif [[ -n "${BUILDKITE_DOCKER:-}" ]]; then
+  DOCKER_CONTAINER="buildkite_${BUILDKITE_JOB_ID}_container"
+  DOCKER_IMAGE="buildkite_${BUILDKITE_JOB_ID}_image"
+
+  function docker-cleanup {
+    echo "~~~ Cleaning up Docker containers"
+    buildkite-prompt-and-run docker rm -f -v "$DOCKER_CONTAINER"
+  }
+
+  trap docker-cleanup EXIT
+
+  # Build the Docker image, namespaced to the job
+  echo "~~~ Building Docker image $DOCKER_IMAGE"
+  buildkite-run docker build -f "${BUILDKITE_DOCKER_FILE:-Dockerfile}" -t "$DOCKER_IMAGE" .
+
+  # Run the build script command in a one-off container
+  echo "~~~ $BUILDKITE_COMMAND_DESCRIPTION (in Docker container)"
+  buildkite-prompt-and-run docker run --name "$DOCKER_CONTAINER" "$DOCKER_IMAGE" "./$BUILDKITE_COMMAND_PATH"
+
+  # Capture the exit status from the build script
+  export BUILDKITE_COMMAND_EXIT_STATUS=$?
+
+## Docker Compose
+elif [[ -n "${BUILDKITE_DOCKER_COMPOSE_CONTAINER:-}" ]]; then
+  # Compose strips dashes and underscores, so we'll remove them to match the docker container names
+  COMPOSE_PROJ_NAME="buildkite${BUILDKITE_JOB_ID//-}"
+  COMPOSE_COMMAND=(docker-compose)
+  IFS=":" read -ra COMPOSE_FILES <<< "${BUILDKITE_DOCKER_COMPOSE_FILE:-docker-compose.yml}"
+  for FILE in "${COMPOSE_FILES[@]}"; do
+    COMPOSE_COMMAND+=(-f "$FILE")
+  done
+  COMPOSE_COMMAND+=(-p "$COMPOSE_PROJ_NAME")
+
+  # Switch on verbose in debug mode
+  if [[ "$BUILDKITE_AGENT_DEBUG" == "true" ]]; then
+    COMPOSE_COMMAND+=(--verbose)
+  fi
+
+  function compose-cleanup {
+    if [[ "${BUILDKITE_DOCKER_COMPOSE_LEAVE_VOLUMES:-false}" == "true" ]]; then
+      REMOVE_VOLUME_FLAG=""
+    else
+      REMOVE_VOLUME_FLAG="-v"
+    fi
+
+    echo "~~~ Cleaning up Docker containers"
+
+    # Send them a friendly kill
+    buildkite-prompt-and-run "${COMPOSE_COMMAND[@]}" kill
+
+    if [[ "$(docker-compose --version)" == *version\ 1.6.* ]]; then
+      # 1.6
+
+      # There's no --all flag to remove adhoc containers
+      buildkite-prompt-and-run "${COMPOSE_COMMAND[@]}" rm --force "$REMOVE_VOLUME_FLAG"
+
+      # So now we remove the adhoc container
+      COMPOSE_CONTAINER_NAME="${COMPOSE_PROJ_NAME}_${BUILDKITE_DOCKER_COMPOSE_CONTAINER}"
+      buildkite-prompt-and-run docker rm -f "$REMOVE_VOLUME_FLAG" "${COMPOSE_CONTAINER_NAME}_run_1"
+    else
+      # 1.7+
+
+      # `compose down` doesn't support force removing images, so we use `rm --force`
+      buildkite-prompt-and-run "${COMPOSE_COMMAND[@]}" rm --force --all "$REMOVE_VOLUME_FLAG"
+
+      # Stop and remove all the linked services and network
+      buildkite-prompt-and-run "${COMPOSE_COMMAND[@]}" down
+    fi
+  }
+
+  trap compose-cleanup EXIT
+
+  # Build the Docker images using Compose, namespaced to the job
+  echo "~~~ Building Docker images"
+
+  if [[ "${BUILDKITE_DOCKER_COMPOSE_BUILD_ALL:-false}" == "true" ]]; then
+    buildkite-run "${COMPOSE_COMMAND[@]}" build --pull
+  else
+    buildkite-run "${COMPOSE_COMMAND[@]}" build --pull "$BUILDKITE_DOCKER_COMPOSE_CONTAINER"
+  fi
+
+  # Run the build script command in the service specified in BUILDKITE_DOCKER_COMPOSE_CONTAINER
+  echo "~~~ $BUILDKITE_COMMAND_DESCRIPTION (in Docker Compose container)"
+  buildkite-prompt-and-run "${COMPOSE_COMMAND[@]}" run "$BUILDKITE_DOCKER_COMPOSE_CONTAINER" "./$BUILDKITE_COMMAND_PATH"
+
+  # Capture the exit status from the build script
+  export BUILDKITE_COMMAND_EXIT_STATUS=$?
+
+## Standard
+else
+  echo "~~~ $BUILDKITE_COMMAND_DESCRIPTION"
+  echo -ne "$BUILDKITE_PROMPT "
+  echo "$BUILDKITE_COMMAND_PROMPT"
+  "./$BUILDKITE_COMMAND_PATH"
+
+  # Capture the exit status from the build script
+  export BUILDKITE_COMMAND_EXIT_STATUS=$?
+
+  # Reset the bootstrap.sh flags
+  buildkite-flags-reset
+fi
