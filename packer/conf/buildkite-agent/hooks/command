@@ -23,8 +23,7 @@ fi
 # the agent run `app/ci.sh`, ci.sh won't exist on the filesytem at this point
 # at app/ci.sh. The solution is to make sure the `WORKDIR` directroy of the
 # docker container is at /app in that case.
-###### STILE MODIFICATIONS ###### Disable this behaviour if we are STILE_BUILD.
-if [[ -f "./$BUILDKITE_COMMAND" ]] && [[ "${STILE_BUILD_ENABLED}" == "true" ]]; then
+if [[ -f "./$BUILDKITE_COMMAND" ]]; then
   BUILDKITE_COMMAND_DESCRIPTION="Running command"
   printf -v BUILDKITE_COMMAND_PROMPT "./%q" "$BUILDKITE_COMMAND"
   BUILDKITE_COMMAND_PATH="$BUILDKITE_COMMAND"
@@ -56,66 +55,6 @@ if [[ ! -x "./$BUILDKITE_COMMAND_PATH" ]]; then
   buildkite-run-debug chmod +x "./$BUILDKITE_COMMAND_PATH"
 fi
 
-
-###### STILE MODIFICATIONS ######
-if [[ "${STILE_BUILD_ENABLED}" == "true" ]]; then
-
-    # If the $STILE_BUILD_ENABLED env var is set, then we should run the required command in the
-    # context of the docker.au.s522.net/stile-build:latest docker container.
-    # This lets update agent behaviour on-the-fly by publishing a new image.
-    STILE_BUILD_IMAGE_TAG="${STILE_BUILD_IMAGE_TAG:-latest}"
-    echo "~~~ Pulling stile-build image tag ${STILE_BUILD_IMAGE_TAG}"
-    buildkite-prompt-and-run docker pull "docker.au.s522.net/stile-build:${STILE_BUILD_IMAGE_TAG}"
-
-    STILE_BUILD_DOCKER_CONTAINER="stile_build_${BUILDKITE_JOB_ID}_container"
-
-    # Very carefully build up a command line to run the build in a docker container.
-    STILE_BUILD_DOCKER_INVOCATION=("docker" "run" "--rm" "-it")
-    # Name the container
-    STILE_BUILD_DOCKER_INVOCATION+=("--name" "$STILE_BUILD_DOCKER_CONTAINER")
-    # We need to mount the checked-out source to the container - slap it at /source
-    STILE_BUILD_DOCKER_INVOCATION+=("-v" "$(realpath "$BUILDKITE_BUILD_CHECKOUT_PATH"):/source")
-    # Export large swathes of the environment into the invocation.
-    # This will make BUILDKITE_* variables exported.
-    # Do this very carefully - something like "for var in $(env)" will break if a variable contains
-    # a newline, and methods like `printenv` also have this issue. The only place I could find that
-    # handled that correctly, and would let us loop, was /proc/self/environ.
-    # Note that /proc/self/environ is the state of the environment at the *start* of the process,
-    # so is unaffected by anything we export here if we just read it; instead, we need to spawn
-    # a `cat` that inherits the current environment and looks at it (hence < <(cat /proc/self/environ)
-    # instead of < /proc/self/environ).
-    while read -d $'\0' ENV_PAIR; do
-        case "${ENV_PAIR}" in
-            BUILDKITE_*) ;& # fallthrough
-            STILE_*)
-                STILE_BUILD_DOCKER_INVOCATION+=("-e" "${ENV_PAIR}")
-                ;;
-        esac
-    done < <(cat /proc/self/environ)
-    # entrypoint.rb in stile-build contianer wants the UID & GID of the buildkite user so that it can
-    # cleanly change users to it.
-    STILE_BUILD_DOCKER_INVOCATION+=("-e" "STILE_BUILDKITE_USER_ID=$(id -u buildkite-agent)")
-    STILE_BUILD_DOCKER_INVOCATION+=("-e" "STILE_BUILDKITE_GROUP_ID=$(id -g buildkite-agent)")
-    # It also needs to be privileged, to start a docker daemon
-    STILE_BUILD_DOCKER_INVOCATION+=("--privileged")
-    # Working directory should be the SCM checkout directory
-    STILE_BUILD_DOCKER_INVOCATION+=("-w" "/source")
-    # The image name
-    STILE_BUILD_DOCKER_INVOCATION+=("docker.au.s522.net/stile-build:${STILE_BUILD_IMAGE_TAG}")
-    if [[ "${STILE_BUILD_COMMAND_IS_PROGRAM}" == "true" ]]; then
-        # $BUILDKITE_COMMAND is a shell-quoted ARGV for a program to execute in the container
-        echo "TODO: STILE_BUILD_COMMAND_IS_PROGRAM not implemented yet"
-        STILE_BUILD_DOCKER_INVOCATION+=("/bin/false")
-    else
-        # $BUILDKITE_COMMAND is an an artibrary shell snippet; so execute a shell for it.
-        STILE_BUILD_DOCKER_INVOCATION+=("/bin/bash" "-c" "${BUILDKITE_COMMAND}")
-    fi
-
-    # Now exec the container!
-    echo "~~~ $BUILDKITE_COMMAND_DESCRIPTION (in STILE_BUILD Docker container)"
-    buildkite-prompt-and-run "${STILE_BUILD_DOCKER_INVOCATION[@]}"
-    export BUILDKITE_COMMAND_EXIT_STATUS=$?
-###### END STILE MODIFICATIONS ##
 
 ## Docker
 elif [[ -n "${BUILDKITE_DOCKER:-}" ]]; then
