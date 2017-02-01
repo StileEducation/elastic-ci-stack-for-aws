@@ -42,7 +42,8 @@
     },
     {
       "type" : "shell",
-      "script" : "scripts/install-stile-extras.sh"
+      "script" : "scripts/install-stile-extras.sh",
+      "execute_command" : "sudo sh -c '{{ .Vars }} {{ .Path }}'"
     }
   ]
 }

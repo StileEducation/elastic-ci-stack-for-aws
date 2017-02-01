@@ -7,7 +7,9 @@ sudo yum update -y -q
 sudo yum install -y -q git-core
 
 echo "Creating buildkite-agent user..."
-sudo useradd --base-dir /var/lib buildkite-agent
+# Make it with a known UID/GID so that we can run as this user in builder containers.
+sudo groupadd --gid 15001 buildkite-agent
+sudo useradd --base-dir /var/lib --uid 15001 --gid 15001 buildkite-agent
 sudo usermod -a -G docker buildkite-agent
 
 echo "Downloading buildkite-agent stable..."
