@@ -59,6 +59,9 @@ update-alternatives --install /usr/bin/ruby ruby /usr/local/bin/ruby 30 \
 update-alternatives --set ruby /usr/local/bin/ruby
 
 /usr/local/bin/gem install bundler
+/usr/local/bin/gem install activesupport '~> 5'
+/usr/local/bin/gem install httparty '~> 0.14'
+/usr/local/bin/gem install addressable '~> 2'
 
 
 popd

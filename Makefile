@@ -75,13 +75,14 @@ validate: build/aws-stack.json
 	--output table \
 	--template-body "file://$(PWD)/build/aws-stack.json"
 
-update-stack: config.json templates/mappings.yml build/aws-stack.json
+update-stack: config.json templates/mappings.yml build/aws-stack.json check-env-agent-token check-env-access-token
 	aws cloudformation update-stack \
 	--output text \
 	--stack-name $(STACK_NAME) \
 	--template-body "file://$(PWD)/build/aws-stack.json" \
 	--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-	--parameters "$$(cat config.json)"
+	--parameters "$$(cat config.json | sed -e "s/BUILDKITE_AGENT_TOKEN/$(BUILDKITE_AGENT_TOKEN)/g" | sed -e "s/BUILDKITE_API_ACCESS_TOKEN/$(BUILDKITE_API_ACCESS_TOKEN)/g")" \
+	--tags "$$(cat extra_tags.json)"
 
 toc:
 	docker run -it --rm -v "$$(pwd):/app" node:slim bash -c "npm install -g markdown-toc && cd /app && markdown-toc -i Readme.md"
