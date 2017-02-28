@@ -5,6 +5,13 @@ export queue_name="testqueue-$$"
 
 cat << EOF
 steps:
+  - command: .buildkite/steps/lint.sh
+    name: "Run linting on shell scripts"
+    agents:
+      queue: aws-stack
+
+  - wait
+
   - command: .buildkite/steps/packer.sh
     name: "Build packer image"
     agents:
@@ -20,26 +27,8 @@ steps:
 
   - wait
 
-  - command: sleep 5
-    name: "Run a command on :buildkite: agent"
-    timeout_in_minutes: 5
-    env:
-      BUILDKITE_SECRETS_KEY: $BUILDKITE_SECRETS_KEY
-    agents:
-      stack: $stack_name
-      queue: $queue_name
-
-  - command: sleep 15
-    name: "Run a command on :buildkite: agent"
-    timeout_in_minutes: 5
-    env:
-      BUILDKITE_SECRETS_KEY: $BUILDKITE_SECRETS_KEY
-    agents:
-      stack: $stack_name
-      queue: $queue_name
-
-  - command: sleep 25
-    name: "Run a command on :buildkite: agent"
+  - command: "/usr/local/bin/bats --pretty tests"
+    name: "Run tests on :buildkite: agent"
     timeout_in_minutes: 5
     env:
       BUILDKITE_SECRETS_KEY: $BUILDKITE_SECRETS_KEY

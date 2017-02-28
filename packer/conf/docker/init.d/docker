@@ -24,7 +24,7 @@
 
 prog="docker"
 unshare=/usr/bin/unshare
-exec="/usr/bin/$prog"
+exec="/usr/bin/dockerd"
 pidfile="/var/run/$prog.pid"
 lockfile="/var/lock/subsys/$prog"
 logfile="/var/log/$prog"
@@ -40,6 +40,10 @@ logfile="/var/log/$prog"
 # If $OPTIONS is not defined, we set it to the value of $other_args,
 # which is the variable name expected by the upstream sysvinit script.
 OPTIONS="${OPTIONS:-${other_args}}"
+
+# How many seconds to wait for the pidfile to appear after starting the daemon.
+# The default value from upstream is 10.
+DAEMON_PIDFILE_TIMEOUT="${DAEMON_PIDFILE_TIMEOUT:-10}"
 
 
 prestart() {
@@ -57,7 +61,7 @@ start() {
         echo "Docker executable $exec not found"
       else
         echo "You do not have permission to execute the Docker executable $exec"
-      fi	      
+      fi
       exit 5
     fi
 
@@ -67,13 +71,11 @@ start() {
         prestart
         printf "Starting $prog:\t"
         echo "\n$(date)\n" >> $logfile
-        "$unshare" -m -- nohup $exec daemon ${OPTIONS} ${DOCKER_STORAGE_OPTIONS} &>> $logfile &
+        "$unshare" -m -- nohup $exec ${OPTIONS} ${DOCKER_STORAGE_OPTIONS} >> $logfile 2>&1 &
         pid=$!
         touch $lockfile
-        # wait up to 10 seconds for the pidfile to exist.  see
-        # https://github.com/docker/docker/issues/5359
         tries=0
-        while [ ! -f $pidfile -a $tries -lt 10 ]; do
+        while [ ! -f $pidfile -a $tries -lt ${DAEMON_PIDFILE_TIMEOUT} ]; do
             sleep 1
             tries=$((tries + 1))
             echo -n '.'

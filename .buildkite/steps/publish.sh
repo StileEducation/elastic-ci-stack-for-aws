@@ -8,6 +8,7 @@ DESTINATION_REGIONS=(
   us-west-1
   us-west-2
   eu-west-1
+  eu-west-2
   eu-central-1
   ap-northeast-1
   ap-northeast-2
@@ -19,6 +20,10 @@ DESTINATION_REGIONS=(
 
 DESTINATION_AMIS=(
 )
+
+is_latest_tag() {
+   [[ "$BUILDKITE_TAG" = $(git describe origin/master --tags --match='v*') ]]
+}
 
 copy_ami_to_region() {
   local source_ami_id="$1"
@@ -93,7 +98,7 @@ Mappings:
     us-east-1 : { AMI: $base_image_id }
 EOF
 
-  if [[ $BUILDKITE_BRANCH == "master" ]] ; then
+  if [[ $BUILDKITE_BRANCH == "master" ]] || is_latest_tag ; then
     for region in ${DESTINATION_REGIONS[*]}; do
       echo "--- Copying $image_id to $region"
 
@@ -132,7 +137,19 @@ generate_mappings() {
   fi
 }
 
+git fetch --tags
+version=$(git describe --tags --candidates=1)
+
 make clean
+
+echo "--- Generating description for version ${version}"
+
+cat << EOF > templates/description.yml
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Buildkite stack ${version}"
+
+EOF
 
 echo "--- Generating mappings"
 
@@ -142,14 +159,18 @@ echo "--- Building and publishing stack"
 
 make setup build
 
-if [[ $BUILDKITE_BRANCH == "master" ]] ; then
+# Publish the top-level mappings only on when we see the most recent tag on master
+if is_latest_tag ; then
   aws s3 cp --acl public-read templates/mappings.yml "s3://buildkite-aws-stack/mappings.yml"
   aws s3 cp --acl public-read build/aws-stack.json "s3://buildkite-aws-stack/aws-stack.json"
-
-  # Publish each build to a unique URL, to let people roll back to old versions
-  aws s3 cp --acl public-read templates/mappings.yml "s3://buildkite-aws-stack/master/${BUILDKITE_COMMIT}.mappings.yml"
-  aws s3 cp --acl public-read build/aws-stack.json "s3://buildkite-aws-stack/master/${BUILDKITE_COMMIT}.aws-stack.json"
+else
+  echo "Skipping publishing latest, '$BUILDKITE_TAG' doesn't match '$(git describe origin/master --tags --match='v*')'"
 fi
 
+# Publish the most recent commit from each branch
 aws s3 cp --acl public-read templates/mappings.yml "s3://buildkite-aws-stack/${BUILDKITE_BRANCH}/mappings.yml"
 aws s3 cp --acl public-read build/aws-stack.json "s3://buildkite-aws-stack/${BUILDKITE_BRANCH}/aws-stack.json"
+
+# Publish each build to a unique URL, to let people roll back to old versions
+aws s3 cp --acl public-read templates/mappings.yml "s3://buildkite-aws-stack/${BUILDKITE_BRANCH}/${BUILDKITE_COMMIT}.mappings.yml"
+aws s3 cp --acl public-read build/aws-stack.json "s3://buildkite-aws-stack/${BUILDKITE_BRANCH}/${BUILDKITE_COMMIT}.aws-stack.json"
