@@ -65,3 +65,7 @@ update-alternatives --set ruby /usr/local/bin/ruby
 
 
 popd
+
+# Copy the termination monitor somewhere
+cp /tmp/conf/spot_termination_monitor.rb /usr/local/bin
+chmod +x /usr/local/bin/spot_termination_monitor.rb

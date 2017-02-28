@@ -112,6 +112,9 @@ service docker restart
 sleep 2
 docker ps
 
+# Start the thingamie that looks out for getting terminated.
+/usr/local/bin/ruby /usr/local/bin/spot_termination_monitor.rb &
+
 /opt/aws/bin/cfn-signal \
 	--region "$AWS_REGION" \
 	--stack "$BUILDKITE_STACK_NAME" \
