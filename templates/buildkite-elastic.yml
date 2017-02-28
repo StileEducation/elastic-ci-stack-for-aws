@@ -375,7 +375,7 @@ Resources:
         BUILDKITE_AUTHORIZED_USERS_URL="$(AuthorizedUsersUrl)" \
         BUILDKITE_ECR_POLICY=$(ECRAccessPolicy) \
         BUILDKITE_TOKEN="$(BuildkiteApiAccessToken)" \
-        BUILDKITE_ORG="$(BuildkiteOrgSlug)" \"
+        BUILDKITE_ORG="$(BuildkiteOrgSlug)" \
         AWS_DEFAULT_REGION=$(AWS::Region) \
         AWS_REGION=$(AWS::Region) \
           /usr/local/bin/bk-install-elastic-stack.sh
