@@ -18,6 +18,24 @@ Resources:
       Cooldown: 60
       ScalingAdjustment: $(ScaleDownAdjustment)
 
+  AgentScaleUpPolicyOnDemand:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Condition: UseAutoscaling
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: $(AgentAutoScaleGroupOnDemand)
+      Cooldown: 120
+      ScalingAdjustment : $(ScaleUpAdjustment)
+
+  AgentScaleDownPolicyOnDemand:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Condition: UseAutoscaling
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: $(AgentAutoScaleGroupOnDemand)
+      Cooldown: 60
+      ScalingAdjustment: $(ScaleDownAdjustment)
+
   AgentUtilizationAlarmHigh:
    Type: AWS::CloudWatch::Alarm
    Condition: UseAutoscaling
@@ -29,7 +47,7 @@ Resources:
       Period: 60
       EvaluationPeriods: 1
       Threshold: 0
-      AlarmActions: [ $(AgentScaleUpPolicy) ]
+      AlarmActions: [ $(AgentScaleUpPolicy), $(AgentScaleUpPolicyOnDemand) ]
       Dimensions:
         - Name: Queue
           Value: $(BuildkiteQueue)
@@ -46,7 +64,7 @@ Resources:
       Period: 300
       EvaluationPeriods: 6
       Threshold: 0
-      AlarmActions: [ $(AgentScaleDownPolicy) ]
+      AlarmActions: [ $(AgentScaleDownPolicy), $(AgentScaleDownPolicyOnDemand) ]
       Dimensions:
         - Name: Queue
           Value: $(BuildkiteQueue)

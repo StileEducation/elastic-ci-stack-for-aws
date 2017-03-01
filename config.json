@@ -32,8 +32,16 @@
     "ParameterValue" : "20"
   },
   {
+    "ParameterKey" : "MinSizeOnDemand",
+    "ParameterValue" : "0"
+  },
+  {
+    "ParameterKey" : "MaxSizeOnDemand",
+    "ParameterValue" : "7"
+  },
+  {
     "ParameterKey" : "SpotPrice",
-    "ParameterValue" : "0.21"
+    "ParameterValue" : "0.23"
   },
   {
     "ParameterKey" : "VpcId",

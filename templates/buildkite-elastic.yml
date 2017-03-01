@@ -42,6 +42,8 @@ Metadata:
         - DesiredSize
         - MinSize
         - MaxSize
+        - MinSizeOnDemand
+        - MaxSizeOnDemand
         - ScaleUpAdjustment
         - ScaleDownAdjustment
 
@@ -146,6 +148,17 @@ Parameters:
     MinValue: 1
 
   MinSize:
+    Description: Minimum number of instances
+    Type: Number
+    Default: 0
+
+  MaxSizeOnDemand:
+    Description: Maximum number of instances
+    Type: Number
+    Default: 10
+    MinValue: 1
+
+  MinSizeOnDemand:
     Description: Minimum number of instances
     Type: Number
     Default: 0
@@ -380,6 +393,40 @@ Resources:
         AWS_REGION=$(AWS::Region) \
           /usr/local/bin/bk-install-elastic-stack.sh
 
+  AgentLaunchConfigurationOnDemand:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: $(AssociatePublicIpAddress)
+      SecurityGroups: [ !If [ "CreateSecurityGroup", $(SecurityGroup), $(SecurityGroupId) ] ]
+      KeyName : $(KeyName)
+      IamInstanceProfile: $(IAMInstanceProfile)
+      InstanceType: $(InstanceType)
+      ImageId : !If [
+        "UseDefaultAMI",
+        "$(AWSRegion2AMI[$(AWS::Region)][AMI])",
+        $(ImageId)
+      ]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: $(RootVolumeSize), VolumeType: gp2 }
+      UserData: !Base64 |
+        #!/bin/bash -xv
+        BUILDKITE_STACK_NAME="$(AWS::StackName)" \
+        BUILDKITE_STACK_VERSION=dev \
+        BUILDKITE_SECRETS_BUCKET="$(SecretsBucket)" \
+        BUILDKITE_AGENT_TOKEN="$(BuildkiteAgentToken)" \
+        BUILDKITE_AGENTS_PER_INSTANCE="$(AgentsPerInstance)" \
+        BUILDKITE_AGENT_RELEASE="$(BuildkiteAgentRelease)" \
+        BUILDKITE_QUEUE="$(BuildkiteQueue)" \
+        BUILDKITE_ELASTIC_BOOTSTRAP_SCRIPT="$(BootstrapScriptUrl)" \
+        BUILDKITE_AUTHORIZED_USERS_URL="$(AuthorizedUsersUrl)" \
+        BUILDKITE_ECR_POLICY=$(ECRAccessPolicy) \
+        BUILDKITE_TOKEN="$(BuildkiteApiAccessToken)" \
+        BUILDKITE_ORG="$(BuildkiteOrgSlug)" \
+        AWS_DEFAULT_REGION=$(AWS::Region) \
+        AWS_REGION=$(AWS::Region) \
+          /usr/local/bin/bk-install-elastic-stack.sh
+
   # XXX: We don't even want a topic or role, but CloudFormation requires them
   # to create a lifecycle hook.
   AgentLifecycleTopic:
@@ -408,6 +455,15 @@ Resources:
     Type: AWS::AutoScaling::LifecycleHook
     Properties:
       AutoScalingGroupName: $(AgentAutoScaleGroup)
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      DefaultResult: CONTINUE
+      NotificationTargetARN: $(AgentLifecycleTopic)
+      RoleARN: $(AgentLifecycleHookRole[Arn])
+
+  AgentLifecycleHook:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName: $(AgentAutoScaleGroupOnDemand)
       LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
       DefaultResult: CONTINUE
       NotificationTargetARN: $(AgentLifecycleTopic)
@@ -458,6 +514,60 @@ Resources:
       AutoScalingRollingUpdate:
         MinInstancesInService: 0
         MaxBatchSize: 5
+        # On rollback this might have to wait for an agent to finish
+        # a job. The agent's init script waits 30 minutes, so we wait
+        # a maximum of 40 minutes to be safe.
+        PauseTime: PT40M
+        WaitOnResourceSignals: true
+        # Ignore scaling alarms during update
+        SuspendProcesses:
+          - AlarmNotification
+          - ScheduledActions
+
+  AgentAutoScaleGroupOnDemand:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !If [
+        "CreateVpcResources",
+        [ $(Subnet0), $(Subnet1) ],
+        $(Subnets)
+      ]
+      LaunchConfigurationName: $(AgentLaunchConfigurationOnDemand)
+      DesiredCapacity: $(MinSizeOnDemand)
+      MinSize: $(MinSizeOnDemand)
+      MaxSize: $(MaxSizeOnDemand)
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupMinSize
+            - GroupMaxSize
+            - GroupInServiceInstances
+            - GroupTerminatingInstances
+            - GroupPendingInstances
+      TerminationPolicies:
+        - OldestLaunchConfiguration
+        - ClosestToNextInstanceHour
+      Tags:
+        - Key: Role
+          Value: buildkite-agent
+          PropagateAtLaunch: true
+        - Key: Name
+          Value: buildkite-agent
+          PropagateAtLaunch: true
+        - Key: BuildkiteAgentRelease
+          Value: $(BuildkiteAgentRelease)
+          PropagateAtLaunch: true
+        - Key: BuildkiteQueue
+          Value: $(BuildkiteQueue)
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+        Count: $(MinSizeOnDemand)
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 0
+        MaxBatchSize: 2
         # On rollback this might have to wait for an agent to finish
         # a job. The agent's init script waits 30 minutes, so we wait
         # a maximum of 40 minutes to be safe.
