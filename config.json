@@ -17,7 +17,7 @@
   },
   {
     "ParameterKey" : "InstanceType",
-    "ParameterValue" : "c4.xlarge"
+    "ParameterValue" : "m4.xlarge"
   },
   {
     "ParameterKey" : "AgentsPerInstance",
@@ -41,7 +41,7 @@
   },
   {
     "ParameterKey" : "SpotPrice",
-    "ParameterValue" : "0.23"
+    "ParameterValue" : "0.272"
   },
   {
     "ParameterKey" : "VpcId",
