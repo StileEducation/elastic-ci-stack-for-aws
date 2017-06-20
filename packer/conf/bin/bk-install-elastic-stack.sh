@@ -44,7 +44,7 @@ if [[ "${BUILDKITE_ECR_POLICY:-none}" != "none" ]] ; then
 fi
 
 # Choose the right agent binary
-ln -s "/usr/bin/buildkite-agent-${BUILDKITE_AGENT_RELEASE}" /usr/bin/buildkite-agent
+ln -sf "/usr/bin/buildkite-agent-${BUILDKITE_AGENT_RELEASE}" /usr/bin/buildkite-agent
 
 # Once 3.0 is stable we can just remove this and let the agent do the right thing
 if [[ "${BUILDKITE_AGENT_RELEASE}" == "stable" ]]; then

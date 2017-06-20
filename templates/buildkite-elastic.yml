@@ -358,6 +358,23 @@ Resources:
       Roles:
         - $(IAMRole)
 
+  MarketingSiteBucketPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: MarketingSiteBucketPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - "arn:aws:s3:::stile-marketing-2017-staging"
+              - "arn:aws:s3:::stile-marketing-2017-staging/*"
+              - "arn:aws:s3:::stile-marketing-2017-production"
+              - "arn:aws:s3:::stile-marketing-2017-production/*"
+      Roles:
+        - $(IAMRole)
+
   AgentLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
