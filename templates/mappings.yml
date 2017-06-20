@@ -1,3 +1,3 @@
 Mappings:
   AWSRegion2AMI:
-    ap-southeast-2     : { AMI: ami-b96b61da }
+    ap-southeast-2     : { AMI: ami-16706075 }
