@@ -13,7 +13,7 @@ on_error() {
 		--region "$AWS_REGION" \
 		--stack "$BUILDKITE_STACK_NAME" \
 		--reason "Error on line $errorLine: $(tail -n 1 /var/log/elastic-stack.log)" \
-		--resource "AgentAutoScaleGroup" \
+		--resource "$AWS_ASG" \
 		--exit-code "$exitCode"
 }
 
@@ -118,5 +118,5 @@ docker ps
 /opt/aws/bin/cfn-signal \
 	--region "$AWS_REGION" \
 	--stack "$BUILDKITE_STACK_NAME" \
-	--resource "AgentAutoScaleGroup" \
+	--resource "$AWS_ASG" \
 	--exit-code 0
