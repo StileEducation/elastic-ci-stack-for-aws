@@ -375,6 +375,20 @@ Resources:
       Roles:
         - $(IAMRole)
 
+  MarketingBeanstalkPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: MarketingBeanstalkPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource:
+              - "arn:aws:iam::298228193223:role/corp-beanstalk-access"
+      Roles:
+        - $(IAMRole)
+
   AgentLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
