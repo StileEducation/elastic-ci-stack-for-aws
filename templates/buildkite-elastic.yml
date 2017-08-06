@@ -427,6 +427,20 @@ Resources:
       Roles:
         - $(IAMRoleDeploy)
 
+  DeploySelfIntrospectPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DeploySelfIntrospectPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+            Resource:
+              - '*'
+      Roles:
+        - $(IAMRoleDeploy)
+
   AgentLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -508,7 +522,7 @@ Resources:
       ]
       KeyName : $(KeyName)
       IamInstanceProfile: $(IAMInstanceProfileDeploy)
-      InstanceType: t2.micro
+      InstanceType: t2.small
       ImageId : !If [
         "UseDefaultAMI",
         "$(AWSRegion2AMI[$(AWS::Region)][AMI])",
@@ -672,6 +686,9 @@ Resources:
           PropagateAtLaunch: true
         - Key: DeploySGID
           Value: $(SecurityGroupDeploy)
+          PropagateAtLaunch: true
+        - Key: WorkerSGID
+          Value: $(SecurityGroup)
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
