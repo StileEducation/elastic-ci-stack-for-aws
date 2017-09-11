@@ -59,6 +59,9 @@ Resources:
           BUILDKITE_TOKEN: $(BuildkiteApiAccessToken)
           BUILDKITE_ORG: $(BuildkiteOrgSlug)
           BUILDKITE_QUEUE: $(BuildkiteQueue)
+      Tags:
+        - { Key: "cost:area", Value: "ci" }
+        - { Key: "cost:function", Value: "bk_agents" }
 
   ScheduledRule:
     Type: "AWS::Events::Rule"
