@@ -1,0 +1,113 @@
+# If enabled, automatically run an ssh-keyscan on the git ssh host, to prevent
+# a yes/no promp from appearing when cloning/fetching
+if [[ "${BUILDKITE_AUTO_SSH_FINGERPRINT_VERIFICATION:-false}" == "true" ]]; then
+  # Only bother running the keyscan if the SSH host has been provided by
+  # Buildkite. It won't be present if the host isn't using the SSH protocol
+  if [[ ! -z "${BUILDKITE_REPO_SSH_HOST:-}" ]]; then
+    : "${BUILDKITE_SSH_DIRECTORY:="$HOME/.ssh"}"
+    : "${BUILDKITE_SSH_KNOWN_HOST_PATH:="$BUILDKITE_SSH_DIRECTORY/known_hosts"}"
+
+    # Ensure the known_hosts file exists
+    mkdir -p "$BUILDKITE_SSH_DIRECTORY"
+    touch "$BUILDKITE_SSH_KNOWN_HOST_PATH"
+
+    # Only add the output from ssh-keyscan if it doesn't already exist in the
+    # known_hosts file (unhashed or hashed).
+    #
+    # Note: We can't rely on exit status. Older versions of ssh-keygen always
+    # exit successful. Only the presence of output is an indicator of whether
+    # the host key was found or not.
+    buildkite-prompt-debug ssh-keygen -f "$BUILDKITE_SSH_KNOWN_HOST_PATH" -F "$BUILDKITE_REPO_SSH_HOST"
+    if [ -z "$(ssh-keygen -f "$BUILDKITE_SSH_KNOWN_HOST_PATH" -F "$BUILDKITE_REPO_SSH_HOST")" ]; then
+      buildkite-prompt ssh-keyscan "$BUILDKITE_REPO_SSH_HOST"
+      ssh-keyscan "$BUILDKITE_REPO_SSH_HOST" >> "$BUILDKITE_SSH_KNOWN_HOST_PATH" ||
+        buildkite-warning "Couldn't ssh key scan repository host $BUILDKITE_REPO_SSH_HOST into $BUILDKITE_SSH_KNOWN_HOST_PATH"
+      buildkite-debug-comment "Added \"$BUILDKITE_REPO_SSH_HOST\" to the list of known hosts at \"$BUILDKITE_SSH_KNOWN_HOST_PATH\""
+    else
+      buildkite-debug-comment "Host \"$BUILDKITE_REPO_SSH_HOST\" already in list of known hosts at \"$BUILDKITE_SSH_KNOWN_HOST_PATH\""
+    fi
+  else
+    buildkite-debug-comment "No repo host to scan for auto SSH fingerprint verification"
+  fi
+else
+  buildkite-debug-comment "Skipping auto SSH fingerprint verification"
+fi
+
+# Disable any interactive Git/SSH prompting
+export GIT_TERMINAL_PROMPT=0
+
+if [[ "$BUILDKITE_AGENT_DEBUG" == "true" ]]; then
+  buildkite-run git --version
+fi
+
+# Do we need to do a git checkout?
+if [[ -d ".git" ]]; then
+  buildkite-run git remote set-url origin "$BUILDKITE_REPO"
+else
+  buildkite-run git clone -v --depth 1 --shallow-submodules -- "$BUILDKITE_REPO" .
+fi
+
+# Git clean prior to checkout
+buildkite-git-clean
+
+# If a refspec is provided then use it instead.
+# i.e. `refs/not/a/head`
+if [[ -n "${BUILDKITE_REFSPEC:-}" ]]; then
+  buildkite-run git fetch -v origin "$BUILDKITE_REFSPEC"
+  buildkite-run git checkout -f "$BUILDKITE_COMMIT"
+
+# GitHub has a special ref which lets us fetch a pull request head, whether
+# or not there is a current head in this repository or another which
+# references the commit. We presume a commit sha is provided. See:
+# https://help.github.com/articles/checking-out-pull-requests-locally/#modifying-an-inactive-pull-request-locally
+elif [[ "$BUILDKITE_PULL_REQUEST" != "false" ]] && [[ "$BUILDKITE_PROJECT_PROVIDER" == *"github"* ]]; then
+  buildkite-run git fetch -v origin "refs/pull/$BUILDKITE_PULL_REQUEST/head"
+  buildkite-run git checkout -f "$BUILDKITE_COMMIT"
+
+# If the commit is "HEAD" then we can't do a commit-specific fetch and will
+# need to fetch the remote head and checkout the fetched head explicitly.
+elif [[ "$BUILDKITE_COMMIT" == "HEAD" ]]; then
+  buildkite-run git fetch -v origin "$BUILDKITE_BRANCH"
+  buildkite-run git checkout -f FETCH_HEAD
+
+# Otherwise fetch and checkout the commit directly. Some repositories don't
+# support fetching a specific commit so we fall back to fetching all heads
+# and tags, hoping that the commit is included.
+else
+  # By default `git fetch origin` will only fetch tags which are reachable
+  # from a fetches branch. git 1.9.0+ changed `--tags` to fetch all tags in
+  # addition to the default refspec, but pre 1.9.0 it excludes the default
+  # refspec.
+  buildkite-prompt-and-run git fetch -v origin "$BUILDKITE_COMMIT" ||
+    buildkite-run git fetch -v origin "$(git config remote.origin.fetch)" "+refs/tags/*:refs/tags/*"
+  buildkite-run git checkout -f "$BUILDKITE_COMMIT"
+fi
+
+if [[ -z "${BUILDKITE_DISABLE_GIT_SUBMODULES:-}" ]]; then
+  # `submodule sync` will ensure the .git/config matches the .gitmodules file.
+  # The command is only available in git version 1.8.1, so if the call fails,
+  # continue the bootstrap script, and show an informative error.
+  buildkite-prompt-and-run git submodule sync --recursive || {
+      buildkite-warning "Failed to recursively sync git submodules. This is most likely because you have an older version of git installed ($(git --version)) and you need version 1.8.1 and above. If you're using submodules, it's highly recommended you upgrade if you can."
+      buildkite-run git submodule sync
+    }
+  buildkite-prompt-and-run git submodule update --init --recursive --force || {
+      buildkite-warning "Failed to update git submodules forcibly. This is most likely because you have an older version of git installed ($(git --version)) and you need version 1.7.6 and above. If you're using submodules, it's highly recommended you upgrade if you can."
+      buildkite-run git submodule update --init --recursive
+    }
+  buildkite-run git submodule foreach --recursive git reset --hard
+fi
+
+# Git clean after checkout
+buildkite-git-clean
+
+# Grab author and commit information and send it back to Buildkite
+buildkite-debug "~~~ Saving Git information"
+
+# Check to see if the meta data exists before setting it
+buildkite-debug-comment "Checking to see if Git data needs to be sent to Buildkite"
+if ! buildkite-run-debug buildkite-agent meta-data exists "buildkite:git:commit"; then
+  buildkite-debug-comment "Sending Git commit information back to Buildkite"
+  buildkite-run-debug buildkite-agent meta-data set "buildkite:git:commit" "$(git show HEAD -s --format=fuller --no-color)"
+  buildkite-run-debug buildkite-agent meta-data set "buildkite:git:branch" "$(git branch --contains HEAD --no-color)"
+fi
