@@ -20,6 +20,9 @@ build/aws-stack.json: $(TEMPLATES) templates/mappings.yml
 	-mkdir -p build/
 	bundle exec cfoo $^ > $@
 	sed -i.bak "s/BUILDKITE_STACK_VERSION=dev/BUILDKITE_STACK_VERSION=$(VERSION)/" $@
+	aws s3 cp --acl public-read $@ s3://stile-ci-assets/aws-stack.json
+	echo "Waiting for S3 sync"
+	sleep 5
 
 setup:
 	bundle check || ((which bundle || gem install bundler --no-ri --no-rdoc) && bundle install --path vendor/bundle)
@@ -81,7 +84,7 @@ update-stack: config.json templates/mappings.yml build/aws-stack.json check-env-
 	aws cloudformation update-stack \
 	--output text \
 	--stack-name $(STACK_NAME) \
-	--template-body "file://$(PWD)/build/aws-stack.json" \
+	--template-url "https://s3-ap-southeast-2.amazonaws.com/stile-ci-assets/aws-stack.json" \
 	--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
 	--parameters "$$(cat config.json | sed -e "s/BUILDKITE_AGENT_TOKEN/$(BUILDKITE_AGENT_TOKEN)/g" | sed -e "s/BUILDKITE_API_ACCESS_TOKEN/$(BUILDKITE_API_ACCESS_TOKEN)/g")" \
 	--tags "$$(cat extra_tags.json)"

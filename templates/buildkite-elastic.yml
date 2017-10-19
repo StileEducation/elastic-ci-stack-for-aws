@@ -629,27 +629,27 @@ Resources:
         - Key: BuildkiteQueue
           Value: $(BuildkiteQueue)
           PropagateAtLaunch: true
-        - { Key: "cost:area", Value: "ci" }
-        - { Key: "cost:function", Value: "bk_agents" }
+        - { Key: "cost:area", Value: "ci", PropagateAtLaunch: true }
+        - { Key: "cost:function", Value: "bk_agents", PropagateAtLaunch: true }
 
 
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: $(MinSize)
-    UpdatePolicy:
-      AutoScalingRollingUpdate:
-        MinInstancesInService: 0
-        MaxBatchSize: 5
-        # On rollback this might have to wait for an agent to finish
-        # a job. The agent's init script waits 30 minutes, so we wait
-        # a maximum of 40 minutes to be safe.
-        PauseTime: PT40M
-        WaitOnResourceSignals: true
-        # Ignore scaling alarms during update
-        SuspendProcesses:
-          - AlarmNotification
-          - ScheduledActions
+    # CreationPolicy:
+    #   ResourceSignal:
+    #     Timeout: PT5M
+    #     Count: $(MinSize)
+    # UpdatePolicy:
+    #   AutoScalingRollingUpdate:
+    #     MinInstancesInService: 0
+    #     MaxBatchSize: 5
+    #     # On rollback this might have to wait for an agent to finish
+    #     # a job. The agent's init script waits 30 minutes, so we wait
+    #     # a maximum of 40 minutes to be safe.
+    #     PauseTime: PT40M
+    #     WaitOnResourceSignals: true
+    #     # Ignore scaling alarms during update
+    #     SuspendProcesses:
+    #       - AlarmNotification
+    #       - ScheduledActions
 
   AgentAutoScaleGroupDeploy:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -693,25 +693,25 @@ Resources:
         - Key: WorkerSGID
           Value: $(SecurityGroup)
           PropagateAtLaunch: true
-        - { Key: "cost:area", Value: "ci" }
-        - { Key: "cost:function", Value: "bk_agents" }
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: $(MinSizeOnDemand)
-    UpdatePolicy:
-      AutoScalingRollingUpdate:
-        MinInstancesInService: 0
-        MaxBatchSize: 2
-        # On rollback this might have to wait for an agent to finish
-        # a job. The agent's init script waits 30 minutes, so we wait
-        # a maximum of 40 minutes to be safe.
-        PauseTime: PT40M
-        WaitOnResourceSignals: true
-        # Ignore scaling alarms during update
-        SuspendProcesses:
-          - AlarmNotification
-          - ScheduledActions
+        - { Key: "cost:area", Value: "ci", PropagateAtLaunch: true }
+        - { Key: "cost:function", Value: "bk_agents", PropagateAtLaunch: true }
+    # CreationPolicy:
+    #   ResourceSignal:
+    #     Timeout: PT5M
+    #     Count: $(MinSizeOnDemand)
+    # UpdatePolicy:
+    #   AutoScalingRollingUpdate:
+    #     MinInstancesInService: 0
+    #     MaxBatchSize: 2
+    #     # On rollback this might have to wait for an agent to finish
+    #     # a job. The agent's init script waits 30 minutes, so we wait
+    #     # a maximum of 40 minutes to be safe.
+    #     PauseTime: PT40M
+    #     WaitOnResourceSignals: true
+    #     # Ignore scaling alarms during update
+    #     SuspendProcesses:
+    #       - AlarmNotification
+    #       - ScheduledActions
 
   AgentAutoScaleGroupOnDemand:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -749,25 +749,25 @@ Resources:
         - Key: BuildkiteQueue
           Value: $(BuildkiteQueue)
           PropagateAtLaunch: true
-        - { Key: "cost:area", Value: "ci" }
-        - { Key: "cost:function", Value: "bk_agents" }
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: $(MinSizeOnDemand)
-    UpdatePolicy:
-      AutoScalingRollingUpdate:
-        MinInstancesInService: 0
-        MaxBatchSize: 2
-        # On rollback this might have to wait for an agent to finish
-        # a job. The agent's init script waits 30 minutes, so we wait
-        # a maximum of 40 minutes to be safe.
-        PauseTime: PT40M
-        WaitOnResourceSignals: true
-        # Ignore scaling alarms during update
-        SuspendProcesses:
-          - AlarmNotification
-          - ScheduledActions
+        - { Key: "cost:area", Value: "ci", PropagateAtLaunch: true }
+        - { Key: "cost:function", Value: "bk_agents", PropagateAtLaunch: true }
+    # CreationPolicy:
+    #   ResourceSignal:
+    #     Timeout: PT5M
+    #     Count: $(MinSizeOnDemand)
+    # UpdatePolicy:
+    #   AutoScalingRollingUpdate:
+    #     MinInstancesInService: 0
+    #     MaxBatchSize: 2
+    #     # On rollback this might have to wait for an agent to finish
+    #     # a job. The agent's init script waits 30 minutes, so we wait
+    #     # a maximum of 40 minutes to be safe.
+    #     PauseTime: PT40M
+    #     WaitOnResourceSignals: true
+    #     # Ignore scaling alarms during update
+    #     SuspendProcesses:
+    #       - AlarmNotification
+    #       - ScheduledActions
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
