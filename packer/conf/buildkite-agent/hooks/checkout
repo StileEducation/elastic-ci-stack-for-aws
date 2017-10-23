@@ -44,11 +44,14 @@ fi
 if [[ -d ".git" ]]; then
   buildkite-run git remote set-url origin "$BUILDKITE_REPO"
 else
-  buildkite-run git clone -v --depth 1 --shallow-submodules -- "$BUILDKITE_REPO" .
+  # buildkite-run git clone -v --depth 1 --shallow-submodules -- "$BUILDKITE_REPO" .
+  BUILDKITE_GIT_CLONE_FLAGS=${BUILDKITE_GIT_CLONE_FLAGS:--v}
+  buildkite-run git clone $BUILDKITE_GIT_CLONE_FLAGS -- "$BUILDKITE_REPO" .
 fi
 
 # Git clean prior to checkout
-buildkite-git-clean
+BUILDKITE_GIT_CLEAN_FLAGS=${BUILDKITE_GIT_CLEAN_FLAGS:--f -f -x -d}
+buildkite-run git clean $BUILDKITE_GIT_CLEAN_FLAGS
 
 # If a refspec is provided then use it instead.
 # i.e. `refs/not/a/head`
