@@ -427,6 +427,20 @@ Resources:
       Roles:
         - $(IAMRoleDeploy)
 
+  CorpSuperadminPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CorpSuperadminPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource:
+              - "arn:aws:iam::708653298782:role/superadmin"
+      Roles:
+        - $(IAMRoleDeploy)
+
   DeploySelfIntrospectPolicy:
     Type: AWS::IAM::Policy
     Properties:
