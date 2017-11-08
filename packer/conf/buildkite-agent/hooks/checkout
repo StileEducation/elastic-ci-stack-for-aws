@@ -42,21 +42,10 @@ fi
 
 # Fetch everything over HTTPS so we don't piss GitHub off by setting their CPUs on fire.
 if [[ ! -z "$STILE_GITHUB_PAT" ]]; then
-  GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS=(-c "url.https://stile:$STILE_GITHUB_PAT@github.com/.insteadOf=git@github.com:")
-  function git {
-    buildkite-comment "Going to run this _modified_ git command:"
-    buildkite-comment "git ${GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS[@]} $@"
-    git "${GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS[@]}" "$@"
-  }
-else
-  function git {
-    buildkite-comment "Going to run this _unmodified_ git command:"
-    buildkite-comment "git $@"
-    git "$@"
-  }
+  git config --global "url.https://stile:${STILE_GITHUB_PAT}@github.com/.insteadOf=git@github.com:"
 fi
 
-echo "OK, We are using PAT: ${STILE_GITHUB_PAT} and git alias $(alias git 2>&1 || true)"
+# echo "OK, We are using PAT: ${STILE_GITHUB_PAT} and git alias $(alias git 2>&1 || true)"
 
 # Do we need to do a git checkout?
 if [[ -d ".git" ]]; then
@@ -108,13 +97,13 @@ if [[ -z "${BUILDKITE_DISABLE_GIT_SUBMODULES:-}" ]]; then
   # `submodule sync` will ensure the .git/config matches the .gitmodules file.
   # The command is only available in git version 1.8.1, so if the call fails,
   # continue the bootstrap script, and show an informative error.
-  buildkite-prompt-and-run git submodule sync --recursive || {
+  buildkite-prompt-and-run git submodule sync -v --recursive || {
       buildkite-warning "Failed to recursively sync git submodules. This is most likely because you have an older version of git installed ($(git --version)) and you need version 1.8.1 and above. If you're using submodules, it's highly recommended you upgrade if you can."
-      buildkite-run git submodule sync
+      buildkite-run git submodule sync -v
     }
-  buildkite-prompt-and-run git submodule update --init --recursive --force || {
+  buildkite-prompt-and-run git submodule update -v --init --recursive --force || {
       buildkite-warning "Failed to update git submodules forcibly. This is most likely because you have an older version of git installed ($(git --version)) and you need version 1.7.6 and above. If you're using submodules, it's highly recommended you upgrade if you can."
-      buildkite-run git submodule update --init --recursive
+      buildkite-run git submodule update -v --init --recursive
     }
   buildkite-run git submodule foreach --recursive git reset --hard
 fi
