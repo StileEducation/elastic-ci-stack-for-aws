@@ -40,6 +40,24 @@ if [[ "$BUILDKITE_AGENT_DEBUG" == "true" ]]; then
   buildkite-run git --version
 fi
 
+# Fetch everything over HTTPS so we don't piss GitHub off by setting their CPUs on fire.
+if [[ ! -z "$STILE_GITHUB_PAT" ]]; then
+  GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS=(-c "url.https://stile:$STILE_GITHUB_PAT@github.com/.insteadOf=git@github.com:")
+  function git {
+    buildkite-comment "Going to run this _modified_ git command:"
+    buildkite-comment "git ${GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS[@]} $@"
+    git "${GIT_USE_HTTPS_INSTEAD_OF_SSH_ARGS[@]}" "$@"
+  }
+else
+  function git {
+    buildkite-comment "Going to run this _unmodified_ git command:"
+    buildkite-comment "git $@"
+    git "$@"
+  }
+fi
+
+echo "OK, We are using PAT: ${STILE_GITHUB_PAT} and git alias $(alias git 2>&1 || true)"
+
 # Do we need to do a git checkout?
 if [[ -d ".git" ]]; then
   buildkite-run git remote set-url origin "$BUILDKITE_REPO"
@@ -102,7 +120,7 @@ if [[ -z "${BUILDKITE_DISABLE_GIT_SUBMODULES:-}" ]]; then
 fi
 
 # Git clean after checkout
-buildkite-git-clean
+# buildkite-git-clean
 
 # Grab author and commit information and send it back to Buildkite
 buildkite-debug "~~~ Saving Git information"

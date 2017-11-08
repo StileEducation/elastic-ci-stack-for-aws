@@ -2,10 +2,10 @@ GEM
   remote: https://rubygems.org/
   specs:
     blankslate (2.1.2.4)
-    cfoo (0.0.5)
+    cfoo (0.0.6)
       json
       parslet (~> 1.5.0)
-    json (1.8.2)
+    json (2.1.0)
     parslet (1.5.0)
       blankslate (~> 2.0)
 
@@ -16,4 +16,4 @@ DEPENDENCIES
   cfoo
 
 BUNDLED WITH
-   1.11.2
+   1.15.2
